@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"net"
 )
 
@@ -26,14 +28,18 @@ func main() {
 }
 
 func handleConnection(connection net.Conn) {
+	fmt.Println("Handling new connection ", connection.RemoteAddr())
 	defer connection.Close()
 
-	// Read incoming data
-	buffer := make([]byte, 1024)
-
-	for {
-
+	c := bufio.NewReader(connection)
+	// read the full message, or return an error
+	buffer, err := io.ReadAll(c)
+	if err != nil {
+		fmt.Println("Error reading body")
+		return
 	}
+
+	fmt.Printf("received %x\n", buffer)
 }
 
 type Response struct {
