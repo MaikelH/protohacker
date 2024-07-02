@@ -52,7 +52,7 @@ func handleConnection(connection net.Conn) {
 			return
 		}
 
-		isPrime := IsPrime(*request.Number)
+		isPrime := IsPrime(int64(*request.Number))
 		response := Response{
 			Method: "isPrime",
 		}
@@ -97,7 +97,7 @@ func IsPrime(number int64) bool {
 	boundary := int(math.Floor(math.Sqrt(float64(number))))
 
 	for i := 3; i <= boundary; i++ {
-		if number%i == 0 {
+		if number%int64(i) == 0 {
 			return false
 		}
 	}
@@ -111,6 +111,6 @@ type Response struct {
 }
 
 type Request struct {
-	Method string `json:"method"`
-	Number *int64 `json:"number"`
+	Method string   `json:"method"`
+	Number *float64 `json:"number"`
 }
