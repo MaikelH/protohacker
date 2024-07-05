@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"net"
 )
 
@@ -31,6 +32,7 @@ func handleConnection(connection net.Conn) {
 	fmt.Println("Handling new connection ", connection.RemoteAddr())
 	defer connection.Close()
 
+	assets := make(map[int32]int32)
 	c := bufio.NewReader(connection)
 	buffer := make([]byte, 9)
 	// read the full message, or return an error
@@ -50,15 +52,39 @@ func handleConnection(connection net.Conn) {
 		// Check if the message is a query or insert
 		if buffer[8] == 'I' {
 			timestamp := convertNumber(buffer[4:8])
-			fmt.Println(timestamp)
+			assets[timestamp] = convertNumber(buffer[0:4])
 		} else if buffer[8] == 'Q' {
+			maxtime := convertNumber(buffer[0:4])
+			mintime := convertNumber(buffer[4:8])
+			fmt.Printf("Querying for assets between %d and %d\n", mintime, maxtime)
 
+			sum := 0
+			itemCount := 0
+			// TODO: Make this more efficient
+			for i := mintime; i <= maxtime; i++ {
+				value, ok := assets[i]
+				if ok {
+					sum += int(value)
+					itemCount++
+				}
+			}
+
+			mean := int32(math.Round(float64(sum) / float64(itemCount)))
+
+			responseBuffer := make([]byte, 4)
+			binary.BigEndian.PutUint32(responseBuffer, uint32(mean))
+			_, err = connection.Write(responseBuffer)
+			if err != nil {
+				fmt.Println("Error writing to connection", err.Error())
+				return
+			}
 		} else {
 			// Unknown message type (disconnect)
 			fmt.Printf("Received unknown message type: %c\n", buffer[0])
 			continue
 		}
 
+		// Reset buffer
 		buffer = make([]byte, 9)
 	}
 }
