@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"net"
 )
@@ -37,7 +38,7 @@ func handleConnection(connection net.Conn) {
 	buffer := make([]byte, 9)
 	// read the full message, or return an error
 	for {
-		read, err := c.Read(buffer)
+		read, err := io.ReadFull(c, buffer)
 		if err != nil {
 			fmt.Println("Error reading from connection", err.Error())
 			return
@@ -49,13 +50,14 @@ func handleConnection(connection net.Conn) {
 			continue
 		}
 
+		messageType := buffer[0]
 		// Check if the message is a query or insert
-		if buffer[8] == 'I' {
-			timestamp := convertNumber(buffer[4:8])
-			assets[timestamp] = convertNumber(buffer[0:4])
-		} else if buffer[8] == 'Q' {
-			maxtime := convertNumber(buffer[0:4])
-			mintime := convertNumber(buffer[4:8])
+		if messageType == 'I' {
+			timestamp := convertNumber(buffer[1:5])
+			assets[timestamp] = convertNumber(buffer[5:])
+		} else if messageType == 'Q' {
+			mintime := convertNumber(buffer[1:5])
+			maxtime := convertNumber(buffer[5:])
 			fmt.Printf("Querying for assets between %d and %d\n", mintime, maxtime)
 
 			sum := 0
@@ -68,8 +70,10 @@ func handleConnection(connection net.Conn) {
 					itemCount++
 				}
 			}
-
-			mean := int32(math.Round(float64(sum) / float64(itemCount)))
+			mean := int32(0)
+			if itemCount > 0 {
+				mean = int32(math.Round(float64(sum) / float64(itemCount)))
+			}
 
 			responseBuffer := make([]byte, 4)
 			binary.BigEndian.PutUint32(responseBuffer, uint32(mean))
