@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"net"
 )
 
@@ -31,20 +30,22 @@ func main() {
 
 func handleConnection(connection net.Conn) {
 	fmt.Println("Handling new connection ", connection.RemoteAddr())
-	defer connection.Close()
+	conState := ConnectionState{connection: connection, prices: map[int32]int32{}}
+	defer conState.Close()
 
-	assets := make(map[int32]int32)
-	c := bufio.NewReader(connection)
+	connectionReader := bufio.NewReader(connection)
 	buffer := make([]byte, 9)
 	// read the full message, or return an error
 	for {
-		read, err := io.ReadFull(c, buffer)
+		// ReadFull makes sure we always read the full 9 bytes.
+		read, err := io.ReadFull(connectionReader, buffer)
 		if err != nil {
 			fmt.Println("Error reading from connection", err.Error())
 			return
 		}
 
-		// According to the specification all messages must be 9 bytes long
+		// According to the specification all messages must be 9 bytes long. If not, we ignore the message and
+		// disconnect the client.
 		if read != 9 {
 			fmt.Printf("Received %d bytes instead of 9\n", read)
 			continue
@@ -54,37 +55,23 @@ func handleConnection(connection net.Conn) {
 		// Check if the message is a query or insert
 		if messageType == 'I' {
 			timestamp := convertNumber(buffer[1:5])
-			assets[timestamp] = convertNumber(buffer[5:])
+			conState.prices[timestamp] = convertNumber(buffer[5:])
 		} else if messageType == 'Q' {
 			mintime := convertNumber(buffer[1:5])
 			maxtime := convertNumber(buffer[5:])
 			fmt.Printf("Querying for assets between %d and %d\n", mintime, maxtime)
 
-			sum := 0
-			itemCount := 0
-			// TODO: Make this more efficient
-			for i := mintime; i <= maxtime; i++ {
-				value, ok := assets[i]
-				if ok {
-					sum += int(value)
-					itemCount++
-				}
-			}
-			mean := int32(0)
-			if itemCount > 0 {
-				mean = int32(math.Round(float64(sum) / float64(itemCount)))
-			}
+			mean := conState.GetMeanPrice(mintime, maxtime)
 
-			responseBuffer := make([]byte, 4)
-			binary.BigEndian.PutUint32(responseBuffer, uint32(mean))
-			_, err = connection.Write(responseBuffer)
+			// Send the mean back to the client
+			err = conState.WriteMean(mean)
 			if err != nil {
 				fmt.Println("Error writing to connection", err.Error())
 				return
 			}
 		} else {
 			// Unknown message type (disconnect)
-			fmt.Printf("Received unknown message type: %c\n", buffer[0])
+			fmt.Printf("Received unknown message type: %connectionReader\n", buffer[0])
 			continue
 		}
 
