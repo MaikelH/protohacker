@@ -14,7 +14,7 @@ Protocol notes:
 - All messages are raw ASCII text
 - Trailing whitespace or return character '\r' should be ignored
 
-- After a client connects, the server should send a welcome message: "Welcome to the Protohacker server\n"
+- After a client connects, the server should send a welcome message: "Welcome to budgetchat! What shall I call you?"
 - The first message from the client is the client's username
   - The username is a string of alphanumeric characters (a-z, A-Z, 0-9)
   - The username is at least 16 characters long
@@ -44,6 +44,7 @@ func main() {
 		fmt.Println("Error starting TCP server", err.Error())
 	}
 
+	room := Room{Users: map[string]UserConnection{}}
 	for {
 		connection, err := listener.Accept()
 		if err != nil {
@@ -51,15 +52,31 @@ func main() {
 			return
 		}
 
-		go handleConnection(connection)
+		go handleConnection(connection, &room)
 	}
 }
 
-func handleConnection(connection net.Conn) {
+func handleConnection(connection net.Conn, room *Room) {
 	fmt.Println("Handling new connection ", connection.RemoteAddr())
+	userCon := UserConnection{Connection: connection}
 
-	// Handle connection
-	for {
-
+	err := userCon.SendWelcomeMessage()
+	if err != nil {
+		fmt.Println("Error sending welcome message", err.Error())
+		return
 	}
+
+	userName, err := userCon.GetUsername()
+	if err != nil {
+		fmt.Println("Error getting username", err.Error())
+		return
+	}
+	userCon.Username = userName
+
+	err := room.AddUser(userCon)
+	if err != nil {
+		fmt.Println("Error adding user to room", err.Error())
+		return
+	}
+
 }
