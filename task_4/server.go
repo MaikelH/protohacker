@@ -1,15 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 )
 
+const Version = "Carducci KV Store 1.0"
+
 type DatabaseServer struct {
+	store map[string]string
 }
 
 func NewDatabaseServer() *DatabaseServer {
-	return &DatabaseServer{}
+	return &DatabaseServer{
+		store: make(map[string]string, 64),
+	}
 }
 
 func (s *DatabaseServer) Start() {
@@ -30,11 +36,11 @@ func (s *DatabaseServer) Start() {
 			return
 		}
 
-		go s.handleMessage(addr, buffer[:n])
+		go s.handleMessage(addr, buffer[:n], listener)
 	}
 }
 
-func (s *DatabaseServer) handleMessage(addr net.Addr, buffer []byte) {
+func (s *DatabaseServer) handleMessage(addr net.Addr, buffer []byte, con net.PacketConn) {
 	fmt.Printf("Received message from %s\n", addr.String())
 
 	if s.containsByte(buffer, 61) {
@@ -45,7 +51,7 @@ func (s *DatabaseServer) handleMessage(addr net.Addr, buffer []byte) {
 			fmt.Println("Error retrieving value", err.Error())
 			return
 		}
-		err = s.sendResponse(addr, value)
+		err = s.sendResponse(addr, value, con)
 		if err != nil {
 			fmt.Println("Error sending response", err.Error())
 		}
@@ -62,13 +68,36 @@ func (s *DatabaseServer) containsByte(buffer []byte, target byte) bool {
 }
 
 func (s *DatabaseServer) insertValue(buffer []byte) {
+	parts := bytes.Split(buffer, []byte("="))
+	if len(parts) != 2 {
+		return
+	}
 
+	key := string(parts[0])
+	value := string(parts[1])
+	s.store[key] = value
 }
 
 func (s *DatabaseServer) retrieveValue(buffer []byte) (string, error) {
-	return "", nil
+	key := string(buffer)
+	if key == "version" {
+		return fmt.Sprintf("version=%s", Version), nil
+	}
+
+	if value, exists := s.store[key]; exists {
+		return fmt.Sprintf("%s=%s", key, value), nil
+	}
+
+	return fmt.Sprintf("%s=", key), nil
 }
 
-func (s *DatabaseServer) sendResponse(addr net.Addr, value string) error {
+func (s *DatabaseServer) sendResponse(addr net.Addr, value string, con net.PacketConn) error {
+	// Send the message
+	_, err := con.WriteTo([]byte(value), addr)
+	if err != nil {
+		fmt.Println("Error sending message:", err)
+		return err
+	}
+
 	return nil
 }
