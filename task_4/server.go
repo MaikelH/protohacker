@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-const Version = "Carducci KV Store 1.0"
+const Version = "ckv-1.0"
 
 type DatabaseServer struct {
 	store map[string]string
