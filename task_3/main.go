@@ -58,7 +58,8 @@ func main() {
 
 func handleConnection(connection net.Conn, room *Room) {
 	fmt.Println("Handling new connection ", connection.RemoteAddr())
-	userCon := UserConnection{Connection: connection}
+	userCon := NewUserConnection(connection)
+	defer userCon.Close()
 
 	err := userCon.SendWelcomeMessage()
 	if err != nil {
@@ -73,10 +74,11 @@ func handleConnection(connection net.Conn, room *Room) {
 	}
 	userCon.Username = userName
 
-	err := room.AddUser(userCon)
+	err = room.AddUser(userCon)
 	if err != nil {
 		fmt.Println("Error adding user to room", err.Error())
 		return
 	}
 
+	userCon.HandleMessages(room)
 }
