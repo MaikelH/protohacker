@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"net"
+	"strings"
 )
 
 const Version = "ckv-1.0"
@@ -41,7 +41,7 @@ func (s *DatabaseServer) Start() {
 }
 
 func (s *DatabaseServer) handleMessage(addr net.Addr, buffer []byte, con net.PacketConn) {
-	fmt.Printf("Received message from %s\n", addr.String())
+	fmt.Printf("Received message from %s - %s\n", addr.String(), string(buffer))
 
 	if s.containsByte(buffer, 61) {
 		s.insertValue(buffer)
@@ -68,14 +68,12 @@ func (s *DatabaseServer) containsByte(buffer []byte, target byte) bool {
 }
 
 func (s *DatabaseServer) insertValue(buffer []byte) {
-	parts := bytes.Split(buffer, []byte("="))
-	if len(parts) != 2 {
+	before, after, found := strings.Cut(string(buffer), "=")
+	if !found {
 		return
 	}
 
-	key := string(parts[0])
-	value := string(parts[1])
-	s.store[key] = value
+	s.store[before] = after
 }
 
 func (s *DatabaseServer) retrieveValue(buffer []byte) (string, error) {
